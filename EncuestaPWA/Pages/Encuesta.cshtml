@@ -1,0 +1,150 @@
+﻿@page
+@{
+    Layout = "_LayoutEncuesta";
+
+}
+<style>
+    body.loading #pregunta,
+    body.loading #btn,
+    body.loading .escala,
+    body.loading .escala img,
+    body.loading .escala label {
+        display: none;
+    }
+
+    #loader {
+        display: none;
+    }
+
+    body.loading #loader {
+        display: block;
+    }
+</style>
+
+
+<h1>Encuesta de Satisfacción</h1>
+
+<p id="loader">
+    <img height="50" src="/img/loading.gif" />
+</p>
+
+<p id="pregunta">
+    ¿Para qué sirve hacer encuestas de satisfacción del cliente?
+</p>
+<div class="escala">
+    <img data-valor="1" class="muymalo " src="~/img/muymalo.png" />
+    <img data-valor="2" class="malo" src="~/img/malo.png" />
+    <img data-valor="3" class="regular" src="~/img/regular.png" />
+    <img data-valor="4" class="bueno" src="~/img/bueno.png" />
+    <img data-valor="5" class="excelente" src="~/img/excelente.png" />
+    <label>Muy malo</label>
+    <label>Malo</label>
+    <label>Regular</label>
+    <label>Bueno</label>
+    <label>Excelente</label>
+</div>
+
+<input id="btn" type="button" value="SIGUIENTE" />
+
+<script>
+    let btn = document.getElementById("btn");
+    let loader = document.getElementById("loader");
+    let pregunta = document.getElementById("pregunta");
+    let escala = document.querySelector(".escala");
+
+    let preguntas = [], respuestas = [];
+    let preguntaActual = 0;
+    let respuestaSeleccionada;
+
+    document.querySelector(".escala").addEventListener("click", function (e) {
+        if (e.target.dataset.valor) {
+            if (respuestaSeleccionada) {
+                respuestaSeleccionada.classList.remove("selected");
+            }
+            respuestaSeleccionada = e.target;
+            respuestaSeleccionada.classList.add("selected");
+        }
+    });
+    btn.addEventListener("click", function () {
+
+            if (respuestaSeleccionada) {
+                let resp = {
+                    id: preguntas[preguntaActual].id,
+                    valor: respuestaSeleccionada.dataset.valor
+                };
+
+                respuestas.push(resp);
+
+
+                preguntaActual++;
+
+                if(preguntaActual==preguntas.length){ //Llegue al final
+                    enviarApi();
+                    return;
+                }
+
+                if (preguntaActual == preguntas.length - 1) {
+                    btn.value = "TERMINAR";
+                }
+
+                mostrarPregunta();
+
+            }
+            else {
+
+                alert("Seleccione una respuesta");
+            }
+       
+       
+    });
+
+    async function enviarApi() {
+        document.body.classList.add("loading");
+        let response = await fetch("api/encuesta/", {
+            method:"post",
+            body: JSON.stringify(respuestas),
+            headers:{
+                "content-type":"application/json"
+            }
+        });
+
+
+        if(response.ok){
+            window.location.replace("/agradecimiento");
+        }
+
+    }
+
+
+    async function cargarPreguntas() {
+        try {
+
+            document.body.classList.add("loading");
+
+            let response = await fetch("api/encuesta");
+
+            if (response.ok) {
+                preguntas = await response.json();
+
+                document.body.classList.remove("loading");
+                mostrarPregunta();
+            }
+
+        } catch (e) {
+            alert("No se pudo descargar: " + e);
+        }
+    }
+
+    function mostrarPregunta() {
+        let preg = preguntas[preguntaActual];
+        pregunta.textContent = preg.pregunta;
+        if (respuestaSeleccionada) {
+
+            respuestaSeleccionada.classList.remove("selected");
+            respuestaSeleccionada = null;
+        }
+    }
+
+    cargarPreguntas();
+
+</script>
