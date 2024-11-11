@@ -15,7 +15,7 @@ self.addEventListener("install", function (e) {
 
     //Precache
     e.waitUntil(precache());
-    createDatabase(); 
+    createDatabase();
 });
 
 
@@ -47,8 +47,10 @@ async function enviarRespuestasGuardadas() {
     if (guardadas.length > 0) {
         //enviarlas de una por una a la api usando fetch
 
+        console.log(guardadas);
         for (let resp of guardadas) {
 
+            console.log(resp);
             let response = await fetch("api/encuesta/", {
                 method: "post",
                 body: JSON.stringify(resp.Value),
@@ -59,7 +61,6 @@ async function enviarRespuestasGuardadas() {
 
 
             if (response.ok) {
-                //si se envian, borrarlas
                 deleteFromDatabase(resp.Key);
             }
             else {
@@ -74,7 +75,7 @@ async function enviarRespuestasGuardadas() {
 
     }
 
-    
+
 
 }
 
@@ -84,12 +85,13 @@ async function networkIndexDbFallback(req) {
 
     try {
         let resp = await fetch(req);
+        enviarRespuestasGuardadas()
         return resp;
 
     } catch (e) {
         //Guardar en la bd de indexeddb el objeto y regresar una respuesta ok
 
-        let resp =  await clon.json(); 
+        let resp = await clon.json();
         addToDatabase(resp);
 
         //registrarme a un sync para que me avise cuando regrese la conexión
@@ -141,13 +143,12 @@ async function cacheFirst(req) {
             return response;
         } else {
             let respuesta = await fetch(req);
-            if (respuesta.ok) { // Verificar si la respuesta es válida
+            if (respuesta && respuesta.ok) { // Verificar si la respuesta es válida
                 cache.put(req, respuesta.clone());
             }
             return respuesta;
         }
     } catch (x) {
-        console.log(x);
         return new Response("Error fetching the resource: " + req.url, { status: 500 });
     }
 }
@@ -334,8 +335,41 @@ function addToDatabase(obj) {
 
 }
 
-// Regresar todos los objetos de la BD
+// Regresar todos los objetos de la BD: Este lo regresa combinando con ID
+// para luego poder borrarlo
 async function getFromDatabase() {
+    return new Promise((resolve, reject) => {
+        let openRequest = indexedDB.open("encuestas2", 1);
+        openRequest.onsuccess = function () {
+            let db = openRequest.result;
+            let transaction = db.transaction("respuestas", "readonly");
+            let objectStore = transaction.objectStore("respuestas");
+
+            // Obtener todos los datos y claves en paralelo
+            let getAllData = objectStore.getAll();
+            let getAllKeys = objectStore.getAllKeys();
+
+            getAllData.onsuccess = function () {
+                getAllKeys.onsuccess = function () {
+                    let resultados = getAllData.result.map((obj, index) => ({
+                        Value: obj,          // El valor del objeto
+                        Key: getAllKeys.result[index]      // El índice del array
+                    }));
+                    resolve(resultados);
+                };
+                getAllKeys.onerror = function () {
+                };
+            };
+            getAllData.onerror = function () {
+            };
+        };
+    });
+}
+
+
+
+// Regresar todos los objetos de la BD: Este lo regresa sin ID
+async function getFromDatabaseSinID() {
     return new Promise(function (resolve, reject) {
         let openRequest = indexedDB.open("encuestas2", 1);
         openRequest.onsuccess = function () {
@@ -372,5 +406,5 @@ function deleteFromDatabase(id) {
         };
     };
 
-    
+
 }
